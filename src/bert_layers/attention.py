@@ -29,30 +29,29 @@ import src.utils  # noqa: F401
 
 IMPL_USE_FLASH3 = False
 IMPL_USE_FLASH2 = False
-try:
-    from flash_attn_interface import flash_attn_varlen_func
-
-    IMPL_USE_FLASH3 = True
-except ImportError:
-    pass
+#try:
+from flash_attn_interface import flash_attn_varlen_func
+IMPL_USE_FLASH3 = True
+#except ImportError:
+#    pass
 # Import Flash Attention 2, which supports ALiBi https://github.com/Dao-AILab/flash-attention
-try:
-    from flash_attn import flash_attn_varlen_qkvpacked_func, flash_attn_qkvpacked_func  # type: ignore
+#try:
+from flash_attn import flash_attn_varlen_qkvpacked_func, flash_attn_qkvpacked_func  # type: ignore
 
-    installed_version = importlib.metadata.version("flash_attn")  # type: ignore
-    if installed_version < "2.5.7":
-        raise ImportError("newer version of flash_attn required (>= 2.5.7)")
-    IMPL_USE_FLASH2 = True
-except ImportError:
-    pass
+installed_version = importlib.metadata.version("flash_attn")  # type: ignore
+if installed_version < "2.5.7":
+    raise ImportError("newer version of flash_attn required (>= 2.5.7)")
+IMPL_USE_FLASH2 = True
+#except ImportError:
+#    pass
 
-try:
-    from flash_attn.layers.rotary import RotaryEmbedding  # type: ignore
-    from .rotary import UnpaddedRotaryEmbedding  # type: ignore
+#try:
+from flash_attn.layers.rotary import RotaryEmbedding  # type: ignore
+from .rotary import UnpaddedRotaryEmbedding  # type: ignore
 
-except ImportError:
-    RotaryEmbedding = None
-    UnpaddedRotaryEmbedding = None
+#except ImportError:
+#    RotaryEmbedding = None
+#    UnpaddedRotaryEmbedding = None
 
 logger = logging.getLogger(__name__)
 
@@ -867,6 +866,8 @@ class FlexBertUnpadRopeAttention(FlexBertAttentionBase):
                     max_seqlen_q=max_seqlen,
                     max_seqlen_k=max_seqlen,
                     deterministic=self.deterministic_fa2,
+                    seqused_q=None,
+                    seqused_k=None,
                 )
                 attn = attn.to(orig_dtype)  # type: ignore
             else:
@@ -880,6 +881,8 @@ class FlexBertUnpadRopeAttention(FlexBertAttentionBase):
                     max_seqlen_q=max_seqlen,
                     max_seqlen_k=max_seqlen,
                     deterministic=self.deterministic_fa2,
+                    seqused_q=None,
+                    seqused_k=None,
                 )
             attn = attn.view(bs, dim)
         elif self.use_fa2:

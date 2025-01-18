@@ -1,4 +1,4 @@
-data_local: data_folder
+data_local: my-copy-c4
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -68,7 +68,7 @@ train_loader:
   dataset:
     local: ${data_local}
     remote: ${data_remote}
-    split: train
+    split: train_small
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
@@ -77,8 +77,8 @@ train_loader:
   drop_last: true
   num_workers: 6
   sequence_packing: true
-  batch_size_warmup_min_size: ${device_train_microbatch_size}
-  batch_size_warmup_tokens: 50_000_000_000tok
+  #batch_size_warmup_min_size: ${device_train_microbatch_size}
+  #batch_size_warmup_tokens: 50_000_000_000tok
 
 
 eval_loader:
@@ -86,7 +86,7 @@ eval_loader:
   dataset:
     local: ${data_local}
     remote: ${data_remote}
-    split: validation
+    split: val
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
@@ -129,11 +129,11 @@ precision: amp_bf16
 # Logging
 progress_bar: false
 log_to_console: true
-console_log_interval: 100ba
+console_log_interval: 1ba
 
 callbacks:
   speed_monitor:
-    window_size: 100
+    window_size: 5
   lr_monitor: {}
   scheduled_gc: {}
   log_grad_norm:
