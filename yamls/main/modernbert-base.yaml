@@ -133,7 +133,7 @@ console_log_interval: 1ba
 
 callbacks:
   speed_monitor:
-    window_size: 5
+    window_size: 1
   lr_monitor: {}
   scheduled_gc: {}
   log_grad_norm:
