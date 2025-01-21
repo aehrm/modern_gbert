@@ -140,6 +140,7 @@ callbacks:
     batch_log_interval: 100
   packing_efficiency:
     log_interval: 100
+  datalogger: {}
 
 # W&B logging
 # loggers:

@@ -43,6 +43,7 @@ from src.algorithms.rope_schedule import FlexBertRopeSchedule
 from src.callbacks.dataloader_speed import DataloaderSpeedMonitor
 from src.callbacks.log_grad_norm import LogGradNorm
 from src.callbacks.packing_efficiency import PackingEfficency
+from src.callbacks.datalogger import DataLogger
 from src.callbacks.scheduled_gc import ScheduledGarbageCollector
 from src.scheduler import CosineInverseSqrtScheduler, OneMinusSqrtScheduler, WarmupStableDecayScheduler
 from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batch
@@ -174,6 +175,8 @@ def build_callback(name, kwargs):
         return DataloaderSpeedMonitor()
     elif name == "packing_efficiency":
         return PackingEfficency(log_interval=kwargs.get("log_interval", 10))
+    elif name == "datalogger":
+        return DataLogger()
     else:
         raise ValueError(f"Not sure how to build callback: {name}")
 
