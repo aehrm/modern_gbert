@@ -12,7 +12,9 @@ from tqdm import tqdm
 
 #%%
 
-data_files = list(str(x) for x in Path('/home/ehrmanntraut/mnt/modernbert_training/llammlein_dataset').glob('*'))
+data_files = list(str(x) for x in Path('/data/42-julia-hpc-rz-lsx/juw57zv/raw').glob('*head*'))
+total_file_size = sum(os.path.getsize(x) for x in data_files)
+
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
 
 #%%
@@ -55,8 +57,11 @@ prepared_dataset = jsonl_dataset.map(split_text, batched=True, batch_size=512, r
 
 #%%
 
+num_workers = min(64, jsonl_dataset.n_shards)
+print(f'running with {num_workers=}')
+
 columns = {'text': 'str', 'id': 'str'}
-dl = DataLoader(prepared_dataset, num_workers=6, batch_size=512)
+dl = DataLoader(prepared_dataset, num_workers=num_workers, batch_size=512)
 
 def generate_samples(loader):
     for batch in loader:
@@ -67,8 +72,8 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='mds_out', exist_ok=True) as out:
-    with tqdm(unit='B', unit_scale=True) as pbar:
+with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds', exist_ok=True) as out:
+    with tqdm(total=total_file_size, unit='B', unit_scale=True) as pbar:
         for sample in generator:
             out.write(sample)
             pbar.update(sum(len(x) for x in sample.values()))
