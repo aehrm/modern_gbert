@@ -18,9 +18,9 @@ data_files = list(sorted(str(x) for x in Path('/data/42-julia-hpc-rz-lsx/juw57zv
 random.seed(123)
 random.shuffle(data_files)
 
-data_files = data_files[:4]
-print(data_files)
+data_files = data_files[:10]
 
+max_output_samples = 10e6
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
@@ -43,16 +43,16 @@ def get_sentences(text, tokenizer):
     yield text[start:]
 
 
-def split_text(batch, tokenizer):
+def split_text(batch, tokenizer, max_str_len=4500):
     output_texts = []
     output_ids = []
     for text, sample_id in zip(batch['text'], batch['id']):
-        if len(text) <= 5000:
+        if len(text) <= max_str_len:
             output_texts.append(text)
             output_ids.append(sample_id)
         else:
             start_idx = 0
-            for sent_batch in more_itertools.constrained_batches(get_sentences(text, tokenizer), max_size=5000, strict=False):
+            for sent_batch in more_itertools.constrained_batches(get_sentences(text, tokenizer), max_size=max_str_len, strict=False):
                 sent_batch = ''.join(sent_batch)
                 output_texts.append(sent_batch)
                 output_ids.append(sample_id+':'+str(start_idx))
@@ -85,7 +85,10 @@ def generate_samples(loader):
 generator = generate_samples(dl)
 
 with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds', exist_ok=True, size_limit="1gb") as out:
-    with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
-        for sample in generator:
-            out.write(sample)
-            pbar.update(sum(len(x) for x in sample.values()))
+    #with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
+    #    for sample in generator:
+    #        out.write(sample)
+    #        pbar.update(sum(len(x) for x in sample.values()))
+    for _, sample in zip(tqdm(range(int(max_output_samples))), generator):
+        out.write(sample)
+
