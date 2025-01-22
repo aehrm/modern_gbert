@@ -1,8 +1,8 @@
-data_local: my-copy-c4
+data_local: /data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_small
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
-tokenizer_name: answerdotai/ModernBERT-base
+tokenizer_name: deepset/gbert-base
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 count_padding_tokens: false
 
@@ -68,7 +68,7 @@ train_loader:
   dataset:
     local: ${data_local}
     remote: ${data_remote}
-    split: train_small
+    #split: train_small
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
@@ -78,29 +78,29 @@ train_loader:
   num_workers: 6
   sequence_packing: true
   #batch_size_warmup_min_size: ${device_train_microbatch_size}
-  #batch_size_warmup_tokens: 50_000_000_000tok
+  #batch_size_warmup_tokens: 3_000_000_000tok #50_000_000_000tok
 
 
-eval_loader:
-  name: text
-  dataset:
-    local: ${data_local}
-    remote: ${data_remote}
-    split: val
-    tokenizer_name: ${tokenizer_name}
-    max_seq_len: ${max_seq_len}
-    shuffle: false
-    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
-    streaming: false
-  drop_last: false
-  num_workers: 3
-  sequence_packing: false
+#eval_loader:
+#  name: text
+#  dataset:
+#    local: ${data_local}
+#    remote: ${data_remote}
+#    split: val
+#    tokenizer_name: ${tokenizer_name}
+#    max_seq_len: ${max_seq_len}
+#    shuffle: false
+#    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
+#    streaming: false
+#  drop_last: false
+#  num_workers: 3
+#  sequence_packing: false
 
 
 # Optimization
 scheduler:
   name: warmup_stable_decay
-  t_warmup: 3_000_000_000tok
+  t_warmup: 1_000_000_000tok #3_000_000_000tok
   alpha_f: 0.00 # Linearly decay to 0.02x the full LR by the end of the training duration
   t_decay: 0tok
 
@@ -115,8 +115,8 @@ optimizer:
   filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
   log_grad_norm: true
 
-max_duration: 1_719_000_000_000tok
-eval_interval: 4000ba
+max_duration: 6_000_000_000tok  # 1_719_000_000_000tok
+eval_interval: 0
 global_train_batch_size: 4608
 global_eval_batch_size: 1024
 
@@ -132,26 +132,29 @@ log_to_console: true
 console_log_interval: 1ba
 
 callbacks:
+  runtime_estimator: {}
   speed_monitor:
-    window_size: 1
+    window_size: 10
   lr_monitor: {}
   scheduled_gc: {}
   log_grad_norm:
     batch_log_interval: 100
   packing_efficiency:
-    log_interval: 100
+    log_interval: 10
   datalogger: {}
+  dataloader_speed: {}
 
 # W&B logging
-# loggers:
-#   wandb:
-#     project: 
-#     entity: 
+loggers:
+  wandb:
+    project: modern-gbert
+    #entity: aehrm
 
 # Checkpoint to local filesystem or remote object store
-save_interval: 4000ba
+save_interval: 500ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: checkpoints/{run_name}
+autoresume: True
 
 # Load from local filesystem or remote object store to
 # load_path: null
