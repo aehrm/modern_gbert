@@ -1,6 +1,7 @@
 #%%
 import os
 from pathlib import Path
+import random
 
 from streaming import MDSWriter
 from torch.utils.data import DataLoader
@@ -12,7 +13,14 @@ from tqdm import tqdm
 
 #%%
 
-data_files = list(str(x) for x in Path('/data/42-julia-hpc-rz-lsx/juw57zv/raw').glob('*head*'))
+data_files = list(sorted(str(x) for x in Path('/data/42-julia-hpc-rz-lsx/juw57zv/raw').glob('*head*')))
+
+random.seed(123)
+random.shuffle(data_files)
+
+data_files = data_files[:4]
+print(data_files)
+
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
@@ -39,12 +47,16 @@ def split_text(batch, tokenizer):
     output_texts = []
     output_ids = []
     for text, sample_id in zip(batch['text'], batch['id']):
-        start_idx = 0
-        for sent_batch in more_itertools.constrained_batches(get_sentences(text, tokenizer), max_size=5000, strict=False):
-            sent_batch = ''.join(sent_batch)
-            output_texts.append(sent_batch)
-            output_ids.append(sample_id+':'+str(start_idx))
-            start_idx += len(sent_batch)
+        if len(text) <= 5000:
+            output_texts.append(text)
+            output_ids.append(sample_id)
+        else:
+            start_idx = 0
+            for sent_batch in more_itertools.constrained_batches(get_sentences(text, tokenizer), max_size=5000, strict=False):
+                sent_batch = ''.join(sent_batch)
+                output_texts.append(sent_batch)
+                output_ids.append(sample_id+':'+str(start_idx))
+                start_idx += len(sent_batch)
         # for i in range(0, len(text), 1024):
         #     output_texts.append(text[i:i+1024])
         #     output_ids.append(sample_id+':'+str(i))
@@ -72,8 +84,8 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds', exist_ok=True) as out:
-    with tqdm(total=total_file_size, unit='B', unit_scale=True) as pbar:
+with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds', exist_ok=True, size_limit="1gb") as out:
+    with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
         for sample in generator:
             out.write(sample)
             pbar.update(sum(len(x) for x in sample.values()))
