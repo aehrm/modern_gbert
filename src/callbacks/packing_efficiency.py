@@ -20,6 +20,7 @@ class PackingEfficency(Callback):
             {
                 "trainer/packing_efficiency": self._packing_efficiency(state),
                 "trainer/device_train_batch_size": state.batch["input_ids"].shape[0] * state.device_train_microbatch_size,
+            }
         )
 
     def _packing_efficiency(self, state: State) -> float:
