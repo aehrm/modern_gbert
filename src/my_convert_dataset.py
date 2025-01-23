@@ -20,7 +20,7 @@ random.shuffle(data_files)
 
 data_files = data_files[:10]
 
-max_output_samples = 10e6
+max_output_samples = 1e6
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
@@ -84,7 +84,7 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds', exist_ok=True, size_limit="1gb") as out:
+with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_smallshards', exist_ok=True) as out:
     #with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
     #    for sample in generator:
     #        out.write(sample)
