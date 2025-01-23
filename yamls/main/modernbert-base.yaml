@@ -19,7 +19,7 @@ model:
   # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
   # the model_config settings match the architecture of the existing model
   model_config:
-    vocab_size: 50368
+    vocab_size: 31168
     init_method: full_megatron
     num_hidden_layers: 22
     hidden_size: 768
@@ -75,7 +75,7 @@ train_loader:
     mlm_probability: ${mlm_probability}
     streaming: false
   drop_last: true
-  num_workers: 6
+  num_workers: 10
   sequence_packing: true
   #batch_size_warmup_min_size: ${device_train_microbatch_size}
   #batch_size_warmup_tokens: 3_000_000_000tok #50_000_000_000tok
@@ -117,7 +117,7 @@ optimizer:
 
 max_duration: 6_000_000_000tok  # 1_719_000_000_000tok
 eval_interval: 0
-global_train_batch_size: 576 #4608 is subdivided onto world_size
+global_train_batch_size: 4608
 global_eval_batch_size: 1024
 
 # System
@@ -140,14 +140,13 @@ callbacks:
     batch_log_interval: 100
   packing_efficiency:
     log_interval: 10
-  datalogger: {}
   dataloader_speed: {}
 
 # W&B logging
-loggers:
-  wandb:
-    project: modern-gbert
-    #entity: aehrm
+# loggers:
+#   wandb:
+#     project: 
+#     entity: 
 
 # Checkpoint to local filesystem or remote object store
 save_interval: 500ba
