@@ -20,7 +20,7 @@ random.shuffle(data_files)
 
 data_files = data_files[:10]
 
-max_output_samples = 1e6
+max_output_samples = 100_000
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)

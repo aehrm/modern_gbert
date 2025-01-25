@@ -345,7 +345,6 @@ def build_no_streaming_dataset(
     cfg: DictConfig,
     tokenizer: Tokenizer,
     pad_sequences: bool = True,
-    return_sample_ids: bool = False,
 ):
     return NoStreamingDataset(
         tokenizer=tokenizer,
@@ -353,7 +352,6 @@ def build_no_streaming_dataset(
         split=cfg.dataset.get("split", None),
         max_seq_len=cfg.dataset.max_seq_len,
         pad_sequences=pad_sequences,
-        return_sample_ids=return_sample_ids,
     )
 
 
@@ -378,8 +376,7 @@ def build_text_dataloader(
         assert cfg.dataset.get("local", None) is not None, "Local path must be provided when not using streaming"
         # sequence packing should never use padded sequences, regular dataloaders may if tokenizing on the fly
         dataset = build_no_streaming_dataset(
-            cfg, tokenizer=tokenizer, pad_sequences=not cfg.get("sequence_packing", False),
-            return_sample_ids=cfg.get("sequence_packing", False)
+            cfg, tokenizer=tokenizer, pad_sequences=not cfg.get("sequence_packing", False)
         )
         sampler = DistributedSamplerPCG64DXSM(
             dataset,
@@ -461,7 +458,6 @@ class NoStreamingDataset(Dataset):
         max_seq_len: int,
         tokenizer: Optional[Tokenizer] = None,
         pad_sequences: bool = True,
-        return_sample_ids: bool = False,
     ) -> None:
         super().__init__()
         if split is not None:
@@ -483,7 +479,8 @@ class NoStreamingDataset(Dataset):
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
         self.pad_sequences = pad_sequences
-        self.return_sample_ids = return_sample_ids
+        #from tqdm import tqdm
+        #self.pbar = tqdm()
 
     def _tokenize(self, text_sample):
         assert self.tokenizer is not None, "Tokenizer required if data is not pretokenized"
@@ -517,10 +514,8 @@ class NoStreamingDataset(Dataset):
                 sample["attention_mask"] = np.ones_like(sample["input_ids"])
             return sample
         elif "text" in sample:
-            sample = self._tokenize(sample)
-            if self.return_sample_ids:
-                sample['sample_id'] = f"{shard_id}-{shard_sample_id}"
-            return sample
+            #self.pbar.update(1)
+            return self._tokenize(sample)
         else:
             RuntimeError("Data sample must contain a field with `input_ids` or `text`")
 

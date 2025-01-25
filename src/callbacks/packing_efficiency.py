@@ -19,7 +19,7 @@ class PackingEfficency(Callback):
         logger.log_metrics(
             {
                 "trainer/packing_efficiency": self._packing_efficiency(state),
-                "trainer/device_train_batch_size": state.batch["input_ids"].shape[0] * state.device_train_microbatch_size,
+                "trainer/device_train_batch_size": str(state.batch['input_ids'].shape),
             }
         )
 
