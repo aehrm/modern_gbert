@@ -1,4 +1,4 @@
-data_local: my-copy-c4/ #llammlein_mds_small #/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_small
+data_local: /data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_smallshards
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -133,6 +133,9 @@ log_to_console: true
 console_log_interval: 1ba
 
 callbacks:
+  datalogger:
+    log_interval: 1
+    log_file: logdir/datalogger_rank{rank}.jsonl
   speed_monitor:
     window_size: 1
   lr_monitor: {}

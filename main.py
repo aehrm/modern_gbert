@@ -176,7 +176,7 @@ def build_callback(name, kwargs):
     elif name == "packing_efficiency":
         return PackingEfficency(log_interval=kwargs.get("log_interval", 10))
     elif name == "datalogger":
-        return DataLogger()
+        return DataLogger(log_interval=kwargs.get('log_interval', None), log_file=kwargs.get('log_file', None))
     else:
         raise ValueError(f"Not sure how to build callback: {name}")
 

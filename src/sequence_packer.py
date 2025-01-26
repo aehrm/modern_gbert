@@ -225,7 +225,7 @@ class SequencePacker(ABC):
                 ), f"expected {len(incoming_batch)=} <= {self.src_batch_size=}"
                 for item in incoming_batch:
                     if len(item["input_ids"]) > 0:  # ignore empty sequences
-                        self.buffer.append(item["input_ids"])
+                        self.buffer.append((item["sample_id"], item["input_ids"]))
                         items_added += 1
                         self._seqs_consumed += 1
             except StopIteration:
@@ -244,11 +244,13 @@ class SequencePacker(ABC):
             retval = self._create_batch()
             if retval is None:
                 break
-            batch, lst_cu_seq_lens = retval
+            batch = retval["input_ids"]
+            lst_cu_seq_lens = retval["cu_seq_lens"]
+            sample_ids = retval["sample_ids"]
 
-            assert isinstance(retval, tuple), f"Unexpected {type(retval)=}"
-            assert isinstance(retval[0], np.ndarray), f"Unexpected {type(retval[0])=}"
-            assert isinstance(retval[1], list), f"Unexpected {type(retval[1])=}"
+            #assert isinstance(retval, tuple), f"Unexpected {type(retval)=}"
+            assert isinstance(batch, np.ndarray), f"Unexpected {type(retval[0])=}"
+            assert isinstance(lst_cu_seq_lens, list), f"Unexpected {type(retval[1])=}"
 
             cu_seq_lens = [torch.tensor(x, dtype=torch.int32) for x in lst_cu_seq_lens]
             max_seq_lens = [torch.max(x[1:] - x[:-1]).item() for x in cu_seq_lens]
@@ -259,6 +261,7 @@ class SequencePacker(ABC):
                     "labels": None,
                     "cu_seqlens": cu_seq_lens,
                     "max_seqlen": max_seq_lens,
+                    "sample_ids": sample_ids,
                 }
             else:
                 (masked_batch, labels) = SequencePacker.mlm_masking(
@@ -270,6 +273,7 @@ class SequencePacker(ABC):
                     "cu_seqlens": cu_seq_lens,
                     "max_seqlen": max_seq_lens,
                     "attention_mask": torch.from_numpy(np.where(batch == self.pad_token_id, 0, 1)),
+                    "sample_ids": sample_ids,
                 }
                 self._token_count += yieldval["attention_mask"].sum().item()
             # # assert isinstance(yieldval[0], torch.Tensor), f"Unexpected {type(yieldval[0])=}"
@@ -431,6 +435,7 @@ class GreedyBestFitSequencePacker(SequencePacker):
         )  # the pseqs being constructed
         seq_counts = np.zeros(self.out_batch_size, dtype=np.int32)  # the count of seqs per pseq
         cum_seq_lens = [[0] for _ in range(self.out_batch_size)]
+        sample_ids = [list() for _ in range(self.out_batch_size)]
         remaining_spaces = np.full(
             (self.out_batch_size,), self.out_pseq_len, dtype=np.int32
         )  # the space remaining per pseq
@@ -444,7 +449,7 @@ class GreedyBestFitSequencePacker(SequencePacker):
                 if items_added == 0:
                     break
 
-            seq = self.buffer.popleft()
+            sample_id, seq = self.buffer.popleft()
             seq_len = len(seq)
 
             # Find the best fit (smallest space that can accommodate the sequence)
@@ -453,11 +458,12 @@ class GreedyBestFitSequencePacker(SequencePacker):
                 end_pos = self.out_pseq_len - remaining_spaces[best_fit_idx]
                 batch[best_fit_idx, end_pos : end_pos + seq_len] = seq
                 seq_counts[best_fit_idx] += 1
+                sample_ids[best_fit_idx].append(sample_id)
                 remaining_spaces[best_fit_idx] -= seq_len
                 cum_seq_lens[best_fit_idx].append(cum_seq_lens[best_fit_idx][-1] + seq_len)
             else:
                 # Can't fit the sequence, save for next batch
-                temp_buffer.append(seq)
+                temp_buffer.append((sample_id, seq))
 
         # Add any sequences we skipped back to the start of the buffer
         self.buffer.extendleft(temp_buffer)
@@ -467,7 +473,7 @@ class GreedyBestFitSequencePacker(SequencePacker):
             for x in cum_seq_lens:
                 if x[-1] != self.out_pseq_len:
                     x.append(self.out_pseq_len)
-            return batch, cum_seq_lens
+            return {"input_ids": batch, "sample_ids": sample_ids, "cu_seq_lens": cum_seq_lens}
         else:
             # If we can't form a full batch, we return None to signal the end
             return None
@@ -528,10 +534,7 @@ class BufferedIterator(Generic[T]):
                     time.sleep(0.01)
             else:
                 with self.lock:
-                    output = self.buffer.popleft()
-                    print(output['input_ids'].is_pinned(), output['input_ids'].device, output['input_ids'][0,:10])
-                    return output
-                    
+                    return self.buffer.popleft()
 
 
 def split_packed_batch(batch: Any, microbatch_size: Union[int, float], padding_tolerance=1.0) -> Sequence:
@@ -567,6 +570,7 @@ def split_packed_batch(batch: Any, microbatch_size: Union[int, float], padding_t
                 "cu_seqlens": cu_seqlens,
                 "max_seqlen": batch["max_seqlen"][i],
                 "attention_mask": attention_mask,
+                "sample_ids": batch["sample_ids"][i],
             }
         )
 
