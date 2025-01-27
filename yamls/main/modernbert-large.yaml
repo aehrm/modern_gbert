@@ -1,8 +1,8 @@
-data_local: data_folder
+data_local: /data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_smallshards
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
-tokenizer_name: answerdotai/ModernBERT-large
+tokenizer_name: deepset/gbert-base
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 count_padding_tokens: false
 
@@ -16,7 +16,7 @@ model:
   tokenizer_name: ${tokenizer_name}
   disable_train_metrics: true
   model_config:
-    vocab_size: 50368
+    vocab_size: 31168
     init_method: full_megatron
     num_hidden_layers: 28
     hidden_size: 1024
@@ -65,39 +65,40 @@ train_loader:
   dataset:
     local: ${data_local}
     remote: ${data_remote}
-    split: train
+    #split: train_small
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: true
     mlm_probability: ${mlm_probability}
     streaming: false
   drop_last: true
+  pin_memory: false
   num_workers: 6
   sequence_packing: true
-  batch_size_warmup_min_size: ${device_train_microbatch_size}
-  batch_size_warmup_tokens: 10_000_000_000tok
+  #batch_size_warmup_min_size: ${device_train_microbatch_size}
+  #batch_size_warmup_tokens: 3_000_000_000tok #50_000_000_000tok
 
 
-eval_loader:
-  name: text
-  dataset:
-    local: ${data_local}
-    remote: ${data_remote}
-    split: validation
-    tokenizer_name: ${tokenizer_name}
-    max_seq_len: ${max_seq_len}
-    shuffle: false
-    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
-    streaming: false
-  drop_last: false
-  num_workers: 3
-  sequence_packing: false
+#eval_loader:
+#  name: text
+#  dataset:
+#    local: ${data_local}
+#    remote: ${data_remote}
+#    split: val
+#    tokenizer_name: ${tokenizer_name}
+#    max_seq_len: ${max_seq_len}
+#    shuffle: false
+#    mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
+#    streaming: false
+#  drop_last: false
+#  num_workers: 3
+#  sequence_packing: false
 
 
 # Optimization
 scheduler:
   name: warmup_stable_decay
-  t_warmup: 2_000_000_000tok
+  t_warmup: 1_000_000_000tok #3_000_000_000tok
   alpha_f: 0.00 # Linearly decay to 0.02x the full LR by the end of the training duration
   t_decay: 0tok
 
@@ -112,16 +113,16 @@ optimizer:
   filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
   log_grad_norm: true
 
-max_duration: 1_719_000_000_000tok
-eval_interval: 4000ba
-global_train_batch_size: 4928
+max_duration: 6_000_000_000tok  # 1_719_000_000_000tok
+eval_interval: 0
+global_train_batch_size: 2464  # 4928
 global_eval_batch_size: 896
 
-init_from_checkpoint:
-  checkpoint_cfg: modernbert-base.yaml
-  checkpoint_load_path: ../checkpoints
-  checkpoint_run_name: modernbert-base
-  mode: tile_weights_from_middle
+#init_from_checkpoint:
+#  checkpoint_cfg: modernbert-base.yaml
+#  checkpoint_load_path: ../checkpoints
+#  checkpoint_run_name: modernbert-base
+#  mode: tile_weights_from_middle
 
 # System
 seed: 17
@@ -132,17 +133,21 @@ precision: amp_bf16
 # Logging
 progress_bar: false
 log_to_console: true
-console_log_interval: 100ba
+console_log_interval: 1ba
 
 callbacks:
+  #datalogger:
+  #  log_interval: 1
+  #  log_file: logdir/datalogger_rank{rank}.jsonl
   speed_monitor:
-    window_size: 100
+    window_size: 1
   lr_monitor: {}
   scheduled_gc: {}
   log_grad_norm:
-    batch_log_interval: 10
+    batch_log_interval: 100
   packing_efficiency:
-    log_interval: 100
+    log_interval: 1
+  dataloader_speed: {}
 
 # W&B logging
 # loggers:
@@ -151,7 +156,7 @@ callbacks:
 #     entity: 
 
 # Checkpoint to local filesystem or remote object store
-save_interval: 4000ba
+save_interval: 500ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: checkpoints/{run_name}
 
