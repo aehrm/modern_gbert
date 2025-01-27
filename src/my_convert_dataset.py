@@ -18,9 +18,6 @@ data_files = list(sorted(str(x) for x in Path('/data/42-julia-hpc-rz-lsx/juw57zv
 random.seed(123)
 random.shuffle(data_files)
 
-data_files = data_files[:10]
-
-max_output_samples = 100_000
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
 jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
@@ -84,11 +81,11 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_smallshards', exist_ok=True) as out:
-    #with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
-    #    for sample in generator:
-    #        out.write(sample)
-    #        pbar.update(sum(len(x) for x in sample.values()))
-    for _, sample in zip(tqdm(range(int(max_output_samples))), generator):
-        out.write(sample)
+with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly', exist_ok=True) as out:
+    with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
+        for sample in generator:
+            out.write(sample)
+            pbar.update(sum(len(x) for x in sample.values()))
+    #for _, sample in zip(tqdm(range(int(max_output_samples))), generator):
+    #    out.write(sample)
 
