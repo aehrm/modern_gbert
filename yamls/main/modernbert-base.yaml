@@ -1,4 +1,4 @@
-data_local: /data/42-julia-hpc-rz-computerphil/ane53vq/llammlein_mds_smallshards
+data_local: /data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly/
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
@@ -79,7 +79,7 @@ train_loader:
   num_workers: 6
   sequence_packing: true
   batch_size_warmup_min_size: ${device_train_microbatch_size}
-  batch_size_warmup_tokens: 3_000_000_000tok #50_000_000_000tok
+  batch_size_warmup_tokens: 15_000_000_000tok #50_000_000_000tok
 
 
 #eval_loader:
@@ -101,7 +101,7 @@ train_loader:
 # Optimization
 scheduler:
   name: warmup_stable_decay
-  t_warmup: 1_000_000_000tok #3_000_000_000tok
+  t_warmup: 3_000_000_000tok #3_000_000_000tok
   alpha_f: 0.00 # Linearly decay to 0.02x the full LR by the end of the training duration
   t_decay: 0tok
 
@@ -116,7 +116,7 @@ optimizer:
   filter_bias_norm_wd: true # If True, doesn't apply weight decay to norm layers and biases
   log_grad_norm: true
 
-max_duration: 6_000_000_000tok  # 1_719_000_000_000tok
+max_duration: 570_000_000_000tok  # 1_719_000_000_000tok
 eval_interval: 0
 global_train_batch_size: 2304 #4608
 global_eval_batch_size: 1024
@@ -133,9 +133,9 @@ log_to_console: true
 console_log_interval: 10ba
 
 callbacks:
-  #datalogger:
-  #  log_interval: 1
-  #  log_file: logdir/datalogger_rank{rank}.jsonl
+  datalogger:
+    log_interval: 100
+    log_file: /data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/logs/{run_name}/datalogger_rank{rank}.jsonl
   speed_monitor:
     window_size: 1
   lr_monitor: {}
@@ -153,9 +153,9 @@ loggers:
     #entity: 
 
 # Checkpoint to local filesystem or remote object store
-save_interval: 500ba
+save_interval: 4000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
-save_folder: checkpoints/{run_name}
+save_folder: /data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/checkpoints/{run_name}
 autoresume: True
 
 # Load from local filesystem or remote object store to

@@ -81,7 +81,7 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly', exist_ok=True) as out:
+with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly/', exist_ok=True, size_limit="100mb") as out:
     with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
         for sample in generator:
             out.write(sample)

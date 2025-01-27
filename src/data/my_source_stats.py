@@ -7,13 +7,15 @@ from datasets import Dataset, load_dataset
 from streaming import StreamingDataset
 import sys
 import os
+from torch.utils.data import DataLoader
 
 def sample_lines(file_path, num_samples=100000, seed=42):
     """
     Randomly sample lines from a file without loading the entire file into memory.
     """
-    streaming_ds = StreamingDataset(local=file_path, shuffle_seed=seed, batch_size=64)
-    print(len(streaming_ds))
+    streaming_ds = StreamingDataset(local=file_path, shuffle_seed=seed, batch_size=64, shuffle=False)
+    #dl = DataLoader(streaming_ds, num_workers=8, batch_size=1)
+    print('total number of samples', len(streaming_ds))
     sampled_lines = []
 
     print('preparing streaming dataset')
@@ -82,13 +84,20 @@ def main():
     quantiles = np.percentile(tokenized_lengths, [75,80,85,90,95,99])
     longer_than_1024 = sum(1 for length in tokenized_lengths if length > 1024) / len(tokenized_lengths)
     total_tokens = sum(tokenized_lengths)
+    tokenized_lengths_trunc = [min(1024, x) for x in tokenized_lengths]
     tokens_dropped = sum(max(0, length - 1024) for length in tokenized_lengths) / total_tokens
+
+    std = np.std(tokenized_lengths_trunc)
+    t_value = 2.576
+    margin_of_error = t_value * (std / (len(tokenized_lengths_trunc) ** 0.5))
     
     # Print the results
     print("Quantiles (75,80,85,90,95,99) of tokenized lengths:", quantiles)
     print("Proportion of sequences longer than 1024:", longer_than_1024)
     print("Proportion of tokens dropped (if cut at 1024):", tokens_dropped)
     print("Average sequence length:", total_tokens / len(tokenized_lengths))
+    print("Average sequence length after truncation:", np.mean(tokenized_lengths_trunc))
+    print("confidence range:", margin_of_error)
 
 if __name__ == '__main__':
     main()
