@@ -7,11 +7,12 @@
 #SBATCH --tasks=2
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem=8G
-#SBATCH --time=10:00:00
-#SBATCH --gres=gpu:2
-#SBATCH -c 12
 #SBATCH --mem=32G
+#SBATCH --time=3:00:00
+#SBATCH --gres=gpu:2
+#SBATCH -c 24
+#SBATCH --mail-type ALL
+#SBATCH --mail-user anton.ehrmanntraut@uni-wuerzburg.de
 
 export MASTER_PORT=29400
 export WORLD_SIZE=4
@@ -20,6 +21,10 @@ export LOCAL_WORLD_SIZE=2
 #export NODE_RANK=
 #export MASTER_ADDR=
 export PYTHONUNBUFFERED=1
+export NCCL_DEBUG=INFO
+export NCCL_PROTO=simple
+export NCCL_P2P_LEVEL=NVL
+export NCCL_P2P_DISABLE=1
 
 cd /home/ane53vq/ModernBERT_original/
 source venv/bin/activate
@@ -30,4 +35,4 @@ export MASTER_ADDR=$master_addr
 
 #srun /bin/bash -c "nvidia-smi && echo \$MASTER_ADDR \$SLURM_NODEID && cat /etc/hostname"
 
-srun /bin/bash -c "export NODE_RANK=\$SLURM_NODEID; cat /etc/hostname; composer main.py yamls/main/modernbert-base.yaml "
+srun /bin/bash -c "export NODE_RANK=\$SLURM_NODEID; cat /etc/hostname; composer --stdout 'logdir/log_rank{rank}' --stderr 'logdir/log_rank{rank}' main.py yamls/main/modernbert-base.yaml "
