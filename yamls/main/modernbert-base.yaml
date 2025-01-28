@@ -137,7 +137,7 @@ callbacks:
     log_interval: 100
     log_file: /data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/logs/{run_name}/datalogger_rank{rank}.jsonl
   speed_monitor:
-    window_size: 1
+    window_size: 10
   lr_monitor: {}
   scheduled_gc: {}
   log_grad_norm:
