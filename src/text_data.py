@@ -346,6 +346,7 @@ def build_no_streaming_dataset(
     tokenizer: Tokenizer,
     pad_sequences: bool = True,
     return_sample_ids: bool = False,
+    shuffle_seed = 9176,
 ):
     return NoStreamingDataset(
         tokenizer=tokenizer,
@@ -354,6 +355,7 @@ def build_no_streaming_dataset(
         max_seq_len=cfg.dataset.max_seq_len,
         pad_sequences=pad_sequences,
         return_sample_ids=return_sample_ids,
+        shuffle_seed=shuffle_seed,
     )
 
 
@@ -379,16 +381,17 @@ def build_text_dataloader(
         # sequence packing should never use padded sequences, regular dataloaders may if tokenizing on the fly
         dataset = build_no_streaming_dataset(
             cfg, tokenizer=tokenizer, pad_sequences=not cfg.get("sequence_packing", False),
-            return_sample_ids=cfg.get("sequence_packing", False)
+            return_sample_ids=cfg.get("sequence_packing", False),
+            shuffle_seed=cfg.dataset.get("shuffle_seed", 9176)
         )
-        sampler = DistributedSamplerPCG64DXSM(
-            dataset,
-            num_replicas=dist.get_world_size(),
-            rank=dist.get_global_rank(),
-            shuffle=cfg.dataset.get("shuffle", False),
-            seed=cfg.dataset.get("shuffle_seed", 9176),
-            drop_last=cfg.drop_last,
-        )
+        #sampler = DistributedSamplerPCG64DXSM(
+        #    dataset,
+        #    num_replicas=dist.get_world_size(),
+        #    rank=dist.get_global_rank(),
+        #    shuffle=cfg.dataset.get("shuffle", False),
+        #    seed=cfg.dataset.get("shuffle_seed", 9176),
+        #    drop_last=cfg.drop_last,
+        #)
 
     mlm_probability = cfg.dataset.get("mlm_probability", None)
     # only use sequence packing if using the no_streaming_dataset
@@ -403,7 +406,8 @@ def build_text_dataloader(
             prefetch_factor=cfg.get("prefetch_factor", 2),
             persistent_workers=cfg.get("persistent_workers", True),
             timeout=cfg.get("timeout", 0),
-            sampler=sampler,
+            shuffle=False,
+            #sampler=sampler,
         )
         sequence_packer = GreedyBestFitSequencePacker.from_composer(
             dataloader,
@@ -462,24 +466,27 @@ class NoStreamingDataset(Dataset):
         tokenizer: Optional[Tokenizer] = None,
         pad_sequences: bool = True,
         return_sample_ids: bool = False,
+        shuffle_seed = 9176,
     ) -> None:
         super().__init__()
-        if split is not None:
-            split_path = os.path.join(local, split)
-        else:
-            split_path = local
-        index_file_path = os.path.join(split_path, "index.json")
-        obj = json.load(open(index_file_path))
-        self.shards = []
-        for info in obj["shards"]:
-            shard = reader_from_json(local, split, info)
-            raw_filename = os.path.join(shard.dirname, shard.split, shard.raw_data.basename)
-            assert os.path.isfile(raw_filename), f"Raw file {raw_filename} does not exist"
-            shard.validate(True)
-            self.shards.append(shard)
-        samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
-        self.len = samples_per_shard.sum()
-        self.spanner = Spanner(samples_per_shard)
+        #if split is not None:
+        #    split_path = os.path.join(local, split)
+        #else:
+        #    split_path = local
+        #index_file_path = os.path.join(split_path, "index.json")
+        #obj = json.load(open(index_file_path))
+        #self.shards = []
+        #for info in obj["shards"]:
+        #    shard = reader_from_json(local, split, info)
+        #    raw_filename = os.path.join(shard.dirname, shard.split, shard.raw_data.basename)
+        #    assert os.path.isfile(raw_filename), f"Raw file {raw_filename} does not exist"
+        #    shard.validate(True)
+        #    self.shards.append(shard)
+        #samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
+        #self.len = samples_per_shard.sum()
+        #self.spanner = Spanner(samples_per_shard)
+        self.ds = StreamingDataset(local=local, shuffle_seed=shuffle_seed, batch_size=64, shuffle=True)
+        self.len = len(self.ds)
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
         self.pad_sequences = pad_sequences
@@ -499,9 +506,11 @@ class NoStreamingDataset(Dataset):
         )
 
     def __getitem__(self, index: int):
-        shard_id, shard_sample_id = self.spanner[index]
-        shard = self.shards[shard_id]
-        sample = shard[shard_sample_id]
+        #shard_id, shard_sample_id = self.spanner[index]
+        #shard = self.shards[shard_id]
+        #sample = shard[shard_sample_id]
+        sample = self.ds.get_item(index)
+
         if "input_ids" in sample:
             for k in list(sample.keys()):
                 if isinstance(sample[k], np.ndarray):
@@ -512,10 +521,10 @@ class NoStreamingDataset(Dataset):
                 sample["attention_mask"] = np.ones_like(sample["input_ids"])
             return sample
         elif "text" in sample:
-            sample = self._tokenize(sample)
+            tokenized_sample = self._tokenize(sample)
             if self.return_sample_ids:
-                sample['sample_id'] = f"{shard_id}-{shard_sample_id}"
-            return sample
+                tokenized_sample['sample_id'] = f"{sample['id']}"
+            return tokenized_sample
         else:
             RuntimeError("Data sample must contain a field with `input_ids` or `text`")
 
