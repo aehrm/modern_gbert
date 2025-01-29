@@ -36,6 +36,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 from src.sequence_packer import BufferedIterable, GreedyBestFitSequencePacker
+from streaming.base.shuffle.py1e import get_shuffle_py1e
 
 Tokenizer = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
 
@@ -44,12 +45,26 @@ logger = logging.getLogger(__name__)
 
 # Subclass DistributedSampler to use PCG64DXSM for shuffling
 class DistributedSamplerPCG64DXSM(DistributedSampler):
+    def __init__(self, dataset, shard_sizes, num_replicas, rank, seed, shuffle, drop_last):
+        super().__init__(
+            dataset=dataset,
+            num_replicas=num_replicas,
+            rank=rank,
+            shuffle=shuffle, 
+            seed=seed,
+            drop_last=drop_last,
+        )
+        self.shard_sizes = shard_sizes
+
     def __iter__(self) -> Iterator[int]:
         if self.shuffle:
             # deterministically shuffle based on epoch and seed
             # use numpy's RNG PCG64DXSM instead of torch.randperm
-            rng = np.random.Generator(np.random.PCG64DXSM(self.seed + self.epoch))
-            indices = rng.permutation(len(self.dataset)).tolist()  # type: ignore[arg-type]
+            #rng = np.random.Generator(np.random.PCG64DXSM(self.seed + self.epoch))
+            #indices = rng.permutation(len(self.dataset)).tolist()  # type: ignore[arg-type]
+            indices = get_shuffle_py1e(shard_sizes=self.shard_sizes, 
+                                       num_canonical_nodes=1, 
+                                       seed=self.seed, epoch=self.epoch)
         else:
             indices = list(range(len(self.dataset)))  # type: ignore[arg-type]
 
@@ -390,8 +405,9 @@ def build_text_dataloader(
             dataset,
             num_replicas=dist.get_world_size(),
             rank=dist.get_global_rank(),
-            shuffle=False, #cfg.dataset.get("shuffle", False),
-            #seed=cfg.dataset.get("shuffle_seed", 9176),
+            shard_sizes=dataset.shard_sizes,
+            shuffle=True, 
+            seed=cfg.dataset.get("shuffle_seed", 9176),
             drop_last=cfg.drop_last,
         )
 
@@ -485,10 +501,9 @@ class NoStreamingDataset(Dataset):
             shard.validate(True)
             self.shards.append(shard)
         samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
+        self.shard_sizes = samples_per_shard
         self.len = samples_per_shard.sum()
-        #self.spanner = Spanner(samples_per_shard)
-        self.ds = StreamingDataset(local=local, shuffle_seed=shuffle_seed, batch_size=64, shuffle=True)
-        #self.len = len(self.ds)
+        self.spanner = Spanner(samples_per_shard)
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
         self.pad_sequences = pad_sequences
@@ -508,10 +523,9 @@ class NoStreamingDataset(Dataset):
         )
 
     def __getitem__(self, index: int):
-        #shard_id, shard_sample_id = self.spanner[index]
-        #shard = self.shards[shard_id]
-        #sample = shard[shard_sample_id]
-        sample = self.ds.get_item(index)
+        shard_id, shard_sample_id = self.spanner[index]
+        shard = self.shards[shard_id]
+        sample = shard[shard_sample_id]
 
         if "input_ids" in sample:
             for k in list(sample.keys()):
