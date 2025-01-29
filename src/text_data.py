@@ -384,14 +384,14 @@ def build_text_dataloader(
             return_sample_ids=cfg.get("sequence_packing", False),
             shuffle_seed=cfg.dataset.get("shuffle_seed", 9176)
         )
-        #sampler = DistributedSamplerPCG64DXSM(
-        #    dataset,
-        #    num_replicas=dist.get_world_size(),
-        #    rank=dist.get_global_rank(),
-        #    shuffle=cfg.dataset.get("shuffle", False),
-        #    seed=cfg.dataset.get("shuffle_seed", 9176),
-        #    drop_last=cfg.drop_last,
-        #)
+        sampler = DistributedSamplerPCG64DXSM(
+            dataset,
+            num_replicas=dist.get_world_size(),
+            rank=dist.get_global_rank(),
+            shuffle=False, #cfg.dataset.get("shuffle", False),
+            #seed=cfg.dataset.get("shuffle_seed", 9176),
+            drop_last=cfg.drop_last,
+        )
 
     mlm_probability = cfg.dataset.get("mlm_probability", None)
     # only use sequence packing if using the no_streaming_dataset
@@ -406,8 +406,8 @@ def build_text_dataloader(
             prefetch_factor=cfg.get("prefetch_factor", 2),
             persistent_workers=cfg.get("persistent_workers", True),
             timeout=cfg.get("timeout", 0),
-            shuffle=False,
-            #sampler=sampler,
+            #shuffle=False,
+            sampler=sampler,
         )
         sequence_packer = GreedyBestFitSequencePacker.from_composer(
             dataloader,
