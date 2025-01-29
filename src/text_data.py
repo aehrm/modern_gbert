@@ -66,7 +66,9 @@ class DistributedSamplerPCG64DXSM(DistributedSampler):
         assert len(indices) == self.total_size
 
         # subsample
-        indices = indices[self.rank : self.total_size : self.num_replicas]
+        replica_size = self.total_size // self.num_replicas
+        print(f'rank {self.rank} takes indices from {replica_size*self.rank} to {replica_size*(1+self.rank)}')
+        indices = indices[replica_size*self.rank : replica_size*(1+self.rank)]
         assert len(indices) == self.num_samples
 
         return iter(indices)
@@ -469,24 +471,24 @@ class NoStreamingDataset(Dataset):
         shuffle_seed = 9176,
     ) -> None:
         super().__init__()
-        #if split is not None:
-        #    split_path = os.path.join(local, split)
-        #else:
-        #    split_path = local
-        #index_file_path = os.path.join(split_path, "index.json")
-        #obj = json.load(open(index_file_path))
-        #self.shards = []
-        #for info in obj["shards"]:
-        #    shard = reader_from_json(local, split, info)
-        #    raw_filename = os.path.join(shard.dirname, shard.split, shard.raw_data.basename)
-        #    assert os.path.isfile(raw_filename), f"Raw file {raw_filename} does not exist"
-        #    shard.validate(True)
-        #    self.shards.append(shard)
-        #samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
-        #self.len = samples_per_shard.sum()
+        if split is not None:
+            split_path = os.path.join(local, split)
+        else:
+            split_path = local
+        index_file_path = os.path.join(split_path, "index.json")
+        obj = json.load(open(index_file_path))
+        self.shards = []
+        for info in obj["shards"]:
+            shard = reader_from_json(local, split, info)
+            raw_filename = os.path.join(shard.dirname, shard.split, shard.raw_data.basename)
+            assert os.path.isfile(raw_filename), f"Raw file {raw_filename} does not exist"
+            shard.validate(True)
+            self.shards.append(shard)
+        samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
+        self.len = samples_per_shard.sum()
         #self.spanner = Spanner(samples_per_shard)
         self.ds = StreamingDataset(local=local, shuffle_seed=shuffle_seed, batch_size=64, shuffle=True)
-        self.len = len(self.ds)
+        #self.len = len(self.ds)
         self.max_seq_len = max_seq_len
         self.tokenizer = tokenizer
         self.pad_sequences = pad_sequences
