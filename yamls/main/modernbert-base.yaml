@@ -118,7 +118,7 @@ optimizer:
 
 max_duration: 570_000_000_000tok  # 1_719_000_000_000tok
 eval_interval: 0
-global_train_batch_size: 2304 #4608
+global_train_batch_size: 4608
 global_eval_batch_size: 1024
 
 # System

@@ -36,6 +36,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 from src.sequence_packer import BufferedIterable, GreedyBestFitSequencePacker
+from streaming.base.shuffle.py1e import get_shuffle_py1e
 
 Tokenizer = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
 
@@ -44,12 +45,26 @@ logger = logging.getLogger(__name__)
 
 # Subclass DistributedSampler to use PCG64DXSM for shuffling
 class DistributedSamplerPCG64DXSM(DistributedSampler):
+    def __init__(self, dataset, shard_sizes, num_replicas, rank, seed, shuffle, drop_last):
+        super().__init__(
+            dataset=dataset,
+            num_replicas=num_replicas,
+            rank=rank,
+            shuffle=shuffle, 
+            seed=seed,
+            drop_last=drop_last,
+        )
+        self.shard_sizes = shard_sizes
+
     def __iter__(self) -> Iterator[int]:
         if self.shuffle:
             # deterministically shuffle based on epoch and seed
             # use numpy's RNG PCG64DXSM instead of torch.randperm
-            rng = np.random.Generator(np.random.PCG64DXSM(self.seed + self.epoch))
-            indices = rng.permutation(len(self.dataset)).tolist()  # type: ignore[arg-type]
+            #rng = np.random.Generator(np.random.PCG64DXSM(self.seed + self.epoch))
+            #indices = rng.permutation(len(self.dataset)).tolist()  # type: ignore[arg-type]
+            indices = get_shuffle_py1e(shard_sizes=self.shard_sizes, 
+                                       num_canonical_nodes=1, 
+                                       seed=self.seed, epoch=self.epoch)
         else:
             indices = list(range(len(self.dataset)))  # type: ignore[arg-type]
 
@@ -66,7 +81,9 @@ class DistributedSamplerPCG64DXSM(DistributedSampler):
         assert len(indices) == self.total_size
 
         # subsample
-        indices = indices[self.rank : self.total_size : self.num_replicas]
+        replica_size = self.total_size // self.num_replicas
+        print(f'rank {self.rank} takes indices from {replica_size*self.rank} to {replica_size*(1+self.rank)}')
+        indices = indices[replica_size*self.rank : replica_size*(1+self.rank)]
         assert len(indices) == self.num_samples
 
         return iter(indices)
@@ -346,6 +363,7 @@ def build_no_streaming_dataset(
     tokenizer: Tokenizer,
     pad_sequences: bool = True,
     return_sample_ids: bool = False,
+    shuffle_seed = 9176,
 ):
     return NoStreamingDataset(
         tokenizer=tokenizer,
@@ -354,6 +372,7 @@ def build_no_streaming_dataset(
         max_seq_len=cfg.dataset.max_seq_len,
         pad_sequences=pad_sequences,
         return_sample_ids=return_sample_ids,
+        shuffle_seed=shuffle_seed,
     )
 
 
@@ -379,13 +398,15 @@ def build_text_dataloader(
         # sequence packing should never use padded sequences, regular dataloaders may if tokenizing on the fly
         dataset = build_no_streaming_dataset(
             cfg, tokenizer=tokenizer, pad_sequences=not cfg.get("sequence_packing", False),
-            return_sample_ids=cfg.get("sequence_packing", False)
+            return_sample_ids=cfg.get("sequence_packing", False),
+            shuffle_seed=cfg.dataset.get("shuffle_seed", 9176)
         )
         sampler = DistributedSamplerPCG64DXSM(
             dataset,
             num_replicas=dist.get_world_size(),
             rank=dist.get_global_rank(),
-            shuffle=cfg.dataset.get("shuffle", False),
+            shard_sizes=dataset.shard_sizes,
+            shuffle=True, 
             seed=cfg.dataset.get("shuffle_seed", 9176),
             drop_last=cfg.drop_last,
         )
@@ -403,6 +424,7 @@ def build_text_dataloader(
             prefetch_factor=cfg.get("prefetch_factor", 2),
             persistent_workers=cfg.get("persistent_workers", True),
             timeout=cfg.get("timeout", 0),
+            #shuffle=False,
             sampler=sampler,
         )
         sequence_packer = GreedyBestFitSequencePacker.from_composer(
@@ -462,6 +484,7 @@ class NoStreamingDataset(Dataset):
         tokenizer: Optional[Tokenizer] = None,
         pad_sequences: bool = True,
         return_sample_ids: bool = False,
+        shuffle_seed = 9176,
     ) -> None:
         super().__init__()
         if split is not None:
@@ -478,6 +501,7 @@ class NoStreamingDataset(Dataset):
             shard.validate(True)
             self.shards.append(shard)
         samples_per_shard = np.array([shard.samples for shard in self.shards], np.int64)
+        self.shard_sizes = samples_per_shard
         self.len = samples_per_shard.sum()
         self.spanner = Spanner(samples_per_shard)
         self.max_seq_len = max_seq_len
@@ -502,6 +526,7 @@ class NoStreamingDataset(Dataset):
         shard_id, shard_sample_id = self.spanner[index]
         shard = self.shards[shard_id]
         sample = shard[shard_sample_id]
+
         if "input_ids" in sample:
             for k in list(sample.keys()):
                 if isinstance(sample[k], np.ndarray):
@@ -512,10 +537,10 @@ class NoStreamingDataset(Dataset):
                 sample["attention_mask"] = np.ones_like(sample["input_ids"])
             return sample
         elif "text" in sample:
-            sample = self._tokenize(sample)
+            tokenized_sample = self._tokenize(sample)
             if self.return_sample_ids:
-                sample['sample_id'] = f"{shard_id}-{shard_sample_id}"
-            return sample
+                tokenized_sample['sample_id'] = f"{sample['id']}"
+            return tokenized_sample
         else:
             RuntimeError("Data sample must contain a field with `input_ids` or `text`")
 

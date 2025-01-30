@@ -13,13 +13,13 @@ def sample_lines(file_path, num_samples=100000, seed=42):
     """
     Randomly sample lines from a file without loading the entire file into memory.
     """
-    streaming_ds = StreamingDataset(local=file_path, shuffle_seed=seed, batch_size=64, shuffle=False)
-    #dl = DataLoader(streaming_ds, num_workers=8, batch_size=1)
+    streaming_ds = StreamingDataset(local=file_path, shuffle_seed=seed, batch_size=64, shuffle=True)
+    dl = DataLoader(streaming_ds, num_workers=8, batch_size=1)
     print('total number of samples', len(streaming_ds))
     sampled_lines = []
 
     print('preparing streaming dataset')
-    it = iter(streaming_ds)
+    it = iter(dl)
 
     for _ in tqdm(range(num_samples)):
         sampled_lines.append(next(it)['text'])
