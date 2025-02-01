@@ -7,7 +7,7 @@ mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 count_padding_tokens: false
 
 # Run Name
-run_name: modernbert-base
+run_name: modernbert-large
 
 # Model
 model:
@@ -15,16 +15,13 @@ model:
   pretrained_model_name: bert-base-uncased
   tokenizer_name: ${tokenizer_name}
   disable_train_metrics: true
-  # FlexBERT 'base' generally uses the default architecture values from the Hugging Face BertConfig object
-  # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
-  # the model_config settings match the architecture of the existing model
   model_config:
     vocab_size: 31168
     init_method: full_megatron
-    num_hidden_layers: 22
-    hidden_size: 768
-    intermediate_size: 1152
-    num_attention_heads: 12 # to have head size of 64
+    num_hidden_layers: 28
+    hidden_size: 2048
+    intermediate_size: 3072
+    num_attention_heads: 32 # to have head size of 64
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
     attn_out_bias: false
@@ -107,7 +104,7 @@ scheduler:
 
 optimizer:
   name: decoupled_stableadamw
-  lr: 8e-4 # Peak learning rate
+  lr: 5e-5 # Peak learning rate
   betas:
   - 0.9
   - 0.98
@@ -118,13 +115,19 @@ optimizer:
 
 max_duration: 470_000_000_000tok  # 1_719_000_000_000tok
 eval_interval: 0
-global_train_batch_size: 4608
-global_eval_batch_size: 1024
+global_train_batch_size: 4928
+global_eval_batch_size: 896
+
+#init_from_checkpoint:
+#  checkpoint_cfg: modernbert-base.yaml
+#  checkpoint_load_path: ../checkpoints
+#  checkpoint_run_name: modernbert-base
+#  mode: tile_weights_from_middle
 
 # System
 seed: 17
-device_eval_batch_size: 128
-device_train_microbatch_size: 96
+device_eval_batch_size: 112
+device_train_microbatch_size: 28
 precision: amp_bf16
 
 # Logging
@@ -149,14 +152,13 @@ callbacks:
 # W&B logging
 loggers:
   wandb:
-    project: modern-gbert
+    project: modern-gbert-1b
     #entity: 
 
 # Checkpoint to local filesystem or remote object store
-save_interval: 4000ba
+save_interval: 2000ba
 save_num_checkpoints_to_keep: -1  # Important, this cleans up checkpoints saved to DISK
 save_folder: /data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/checkpoints/{run_name}
-autoresume: True
 
 # Load from local filesystem or remote object store to
 # load_path: null
