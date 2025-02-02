@@ -398,7 +398,7 @@ def build_text_dataloader(
         # sequence packing should never use padded sequences, regular dataloaders may if tokenizing on the fly
         dataset = build_no_streaming_dataset(
             cfg, tokenizer=tokenizer, pad_sequences=not cfg.get("sequence_packing", False),
-            return_sample_ids=cfg.get("sequence_packing", False),
+            return_sample_ids=cfg.get("return_sample_ids", True),
             shuffle_seed=cfg.dataset.get("shuffle_seed", 9176)
         )
         sampler = DistributedSamplerPCG64DXSM(
@@ -538,8 +538,12 @@ class NoStreamingDataset(Dataset):
             return sample
         elif "text" in sample:
             tokenized_sample = self._tokenize(sample)
-            if self.return_sample_ids:
+            if 'id' in sample.keys():
                 tokenized_sample['sample_id'] = f"{sample['id']}"
+            else:
+                if self.return_sample_ids:
+                    RuntimeError("returning sample ids requires sample ids")
+                tokenized_sample['sample_id'] = "none"
             return tokenized_sample
         else:
             RuntimeError("Data sample must contain a field with `input_ids` or `text`")

@@ -14,15 +14,15 @@ def sample_lines(file_path, num_samples=100000, seed=42):
     Randomly sample lines from a file without loading the entire file into memory.
     """
     streaming_ds = StreamingDataset(local=file_path, shuffle_seed=seed, batch_size=64, shuffle=True)
-    dl = DataLoader(streaming_ds, num_workers=8, batch_size=1)
+    #dl = DataLoader(streaming_ds, num_workers=8, batch_size=1)
     print('total number of samples', len(streaming_ds))
     sampled_lines = []
 
     print('preparing streaming dataset')
-    it = iter(dl)
+    it = iter(streaming_ds)
 
     for _ in tqdm(range(num_samples)):
-        sampled_lines.append(next(it)['text'])
+        sampled_lines.append(next(it)['text'])#[0])
 
     return sampled_lines
 
@@ -76,7 +76,8 @@ def main():
     dataset = Dataset.from_dict({"text": sampled_texts})
     
     # Load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("deepset/gbert-base")
+    #tokenizer = AutoTokenizer.from_pretrained("deepset/gbert-base")
+    tokenizer = AutoTokenizer.from_pretrained("/home/ane53vq/llammlein/LLaMmlein_tok4/")
     
     # Tokenize the dataset using the map function
     tokenized_dataset = dataset.map(lambda examples: tokenize_function(examples, tokenizer), batched=True, )

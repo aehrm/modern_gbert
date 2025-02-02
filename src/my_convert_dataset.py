@@ -10,6 +10,8 @@ import more_itertools
 
 from nltk.tokenize.punkt import PunktTokenizer
 from tqdm import tqdm
+import io
+import pyarrow.json as paj
 
 #%%
 
@@ -20,7 +22,7 @@ random.shuffle(data_files)
 
 total_file_size = sum(os.path.getsize(x) for x in data_files)
 
-jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
+#jsonl_dataset = load_dataset('json', split='train', data_files=data_files, streaming=True)
 
 #%%
 
@@ -62,15 +64,31 @@ def split_text(batch, tokenizer, max_str_len=4500):
 
 
 tokenizer = PunktTokenizer(lang='german')
-prepared_dataset = jsonl_dataset.map(split_text, batched=True, batch_size=512, remove_columns=['source'], fn_kwargs=dict(tokenizer=tokenizer))
-
-#%%
-
-num_workers = min(64, jsonl_dataset.n_shards)
-print(f'running with {num_workers=}')
 
 columns = {'text': 'str', 'id': 'str'}
-dl = DataLoader(prepared_dataset, num_workers=num_workers, batch_size=512)
+
+def get_loader(jsonl_files, tokenizer):
+    block_size = 2 << 20
+    for file in jsonl_files:
+        print(file)
+        with open(file, 'rb') as f:
+            while True:
+                batch = f.read(block_size)
+                if not batch:
+                    break
+                batch += f.readline()
+
+                pa_table = paj.read_json(
+                        io.BytesIO(batch), read_options=paj.ReadOptions(block_size=block_size)
+                        )
+                
+                for batch in pa_table.to_batches(max_chunksize=512):
+                    yield split_text(batch.to_pydict(), tokenizer)
+
+                
+
+
+dl = get_loader(data_files, tokenizer)
 
 def generate_samples(loader):
     for batch in loader:
@@ -81,11 +99,11 @@ def generate_samples(loader):
 
 generator = generate_samples(dl)
 
-with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly/', exist_ok=True, size_limit="100mb") as out:
-    with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
-        for sample in generator:
-            out.write(sample)
-            pbar.update(sum(len(x) for x in sample.values()))
+#with MDSWriter(columns=columns, out='/data/42-julia-hpc-rz-computerphil/ane53vq/modernbert/llamlein_dataset_headonly/', size_limit="100mb") as out:
+with tqdm(total=total_file_size, unit='B', unit_scale=True, mininterval=1, smoothing=0.1) as pbar:
+    for sample in generator:
+        #out.write(sample)
+        pbar.update(sum(len(x) for x in sample.values()))
     #for _, sample in zip(tqdm(range(int(max_output_samples))), generator):
     #    out.write(sample)
 
