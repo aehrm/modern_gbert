@@ -1,0 +1,47 @@
+Bootstrap: docker
+From: nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+
+%environment
+  export DEBIAN_FRONTEND=noninteractive
+  export TZ=Europe/Berlin
+  export PYTHONFAULTHANDLER=1
+  export PYTHONUNBUFFERED=1
+  export PYTHONHASHSEED=random
+  export PIP_NO_CACHE_DIR=off
+  export PIP_DISABLE_PIP_VERSION_CHECK=on
+
+%files
+  requirements.txt /opt
+
+%setup
+  mkdir -p $APPTAINER_ROOTFS/opt/flash-attention
+
+%post
+  export DEBIAN_FRONTEND=noninteractive
+  export TZ=Europe/Berlin
+  export PYTHONFAULTHANDLER=1
+  export PYTHONUNBUFFERED=1
+  export PYTHONHASHSEED=random
+  export PIP_NO_CACHE_DIR=off
+  export PIP_DISABLE_PIP_VERSION_CHECK=on
+  apt-get update -y
+  apt-get -y install \
+    curl \
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-distutils \
+    unzip \
+    wget \
+    git
+ 
+  cd /
+  pip install -r /opt/requirements.txt
+  pip install --verbose --no-build-isolation "flash_attn==2.6.3"
+
+  pip install ninja
+  cd /opt/flash-attention/hopper
+  git checkout bc482cbf918c8cecd368ee54c306684645548e23
+  MAX_JOBS=8 python3 setup.py install 
+  cd /
