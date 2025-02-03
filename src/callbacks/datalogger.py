@@ -24,7 +24,7 @@ class DataLogger(Callback):
             self.log_file = self.log_file_name.format(rank=dist.get_global_rank(), run_name=state.run_name)
             basedir = os.path.dirname(self.log_file)
             if not os.path.exists(basedir):
-                os.makedirs(basedir)
+                os.makedirs(basedir, exist_ok=True)
 
         output = {
                 "batch": state.timestamp.batch.value,
